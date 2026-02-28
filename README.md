@@ -37,25 +37,6 @@ Install the development version from GitHub:
 ``` r
 # install.packages("remotes")
 remotes::install_github("pjoppenh/AssignParents")
-#> Using GitHub PAT from the git credential store.
-#> Downloading GitHub repo pjoppenh/AssignParents@HEAD
-#> stringdist (0.9.15 -> 0.9.17) [CRAN]
-#> Installing 1 packages: stringdist
-#> Installing package into '/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/Rtmp9LSp3O/temp_libpath2b52f4df6aa'
-#> (as 'lib' is unspecified)
-#> 
-#> The downloaded binary packages are in
-#>  /var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T//RtmpGZwg7t/downloaded_packages
-#> ── R CMD build ─────────────────────────────────────────────────────────────────
-#> * checking for file ‘/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/RtmpGZwg7t/remotesbb0e242869c0/pjoppenh-AssignParents-6a48aa1/DESCRIPTION’ ... OK
-#> * preparing ‘AssignParents’:
-#> * checking DESCRIPTION meta-information ... OK
-#> * checking for LF line-endings in source and make files and shell scripts
-#> * checking for empty or unneeded directories
-#> Omitted ‘LazyData’ from DESCRIPTION
-#> * building ‘AssignParents_0.1.0.tar.gz’
-#> Installing package into '/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/Rtmp9LSp3O/temp_libpath2b52f4df6aa'
-#> (as 'lib' is unspecified)
 ```
 
 ------------------------------------------------------------------------
@@ -137,15 +118,15 @@ out <- assign_parents(
   min_n = 1,
   keep_unassigned = TRUE
 )
-#> [2026-02-28 16:40:04] Starting identity matrix computation...
+#> [2026-02-28 17:04:51] Starting identity matrix computation...
 #> Computing identity matrix...
 #> Computing mismatch matrix...
-#> [2026-02-28 16:40:04] Identity/mismatch matrices done.
-#> [2026-02-28 16:40:04] Starting DIRTYxCLEAN scoring (presence/abundance/dominance)...
+#> [2026-02-28 17:04:51] Identity/mismatch matrices done.
+#> [2026-02-28 17:04:51] Starting DIRTYxCLEAN scoring (presence/abundance/dominance)...
 #>   |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
-#> [2026-02-28 16:40:04] Scoring complete. Building single_score matrix...
-#> [2026-02-28 16:40:04] Selecting parents / building mapping...
-#> [2026-02-28 16:40:04] Collapsing tables...
+#> [2026-02-28 17:04:51] Scoring complete. Building single_score matrix...
+#> [2026-02-28 17:04:51] Selecting parents / building mapping...
+#> [2026-02-28 17:04:51] Collapsing tables...
 
 out$collapsed_table
 #>    S1 S2
