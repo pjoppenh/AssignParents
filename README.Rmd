@@ -86,7 +86,7 @@ All operations preserve total counts exactly.
 
 ## Example
 
-```{r example}
+```{r example, message=FALSE, warning=FALSE}
 library(AssignParents)
 
 clean_seqs <- c(
