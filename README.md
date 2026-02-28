@@ -4,10 +4,9 @@
 # AssignParents
 
 <!-- badges: start -->
-<!-- Add R-CMD-check badge after enabling GitHub Actions -->
-<!-- Add license badge after adding MIT license -->
 
 [![R-CMD-check](https://github.com/pjoppenh/AssignParents/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pjoppenh/AssignParents/actions/workflows/R-CMD-check.yaml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18819156.svg)](https://doi.org/10.5281/zenodo.18819156)
 <!-- badges: end -->
 
 **AssignParents** is a post-denoising refinement tool for ASV-based
