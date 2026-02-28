@@ -1,0 +1,294 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# AssignParents
+
+<!-- badges: start -->
+<!-- Add R-CMD-check badge after enabling GitHub Actions -->
+<!-- Add license badge after adding MIT license -->
+
+[![R-CMD-check](https://github.com/pjoppenh/AssignParents/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pjoppenh/AssignParents/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
+
+**AssignParents** is a post-denoising refinement tool for ASV-based
+metabarcoding workflows. It is meant to address the issue of Phred-score
+bias inherent to metabarcoding data and was originally conceptualized
+in: Oppenheimer et al., *ISME Communications* (2024).
+<https://academic.oup.com/ismecommun/article/5/1/ycaf124/8209421>. This
+package builds upon the framework outlined in the paper by reconciling
+high-confidence (“CLEAN”) and permissive (“DIRTY”) ASV tables using:
+
+- Sequence identity filtering
+- Prevalence-aware presence similarity
+- Abundance similarity
+- Dominance filtering
+- Deterministic parent selection
+
+AssignParents is designed to reduce residual artifact ASVs and improve
+quantitative stability in downstream ecological and statistical
+analyses.
+
+------------------------------------------------------------------------
+
+## Installation
+
+Install the development version from GitHub:
+
+``` r
+# install.packages("remotes")
+remotes::install_github("pjoppenh/AssignParents")
+#> Using GitHub PAT from the git credential store.
+#> Downloading GitHub repo pjoppenh/AssignParents@HEAD
+#> stringdist (0.9.15 -> 0.9.17) [CRAN]
+#> Installing 1 packages: stringdist
+#> Installing package into '/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/Rtmp9LSp3O/temp_libpath2b52f4df6aa'
+#> (as 'lib' is unspecified)
+#> 
+#> The downloaded binary packages are in
+#>  /var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T//RtmpGZwg7t/downloaded_packages
+#> ── R CMD build ─────────────────────────────────────────────────────────────────
+#> * checking for file ‘/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/RtmpGZwg7t/remotesbb0e242869c0/pjoppenh-AssignParents-6a48aa1/DESCRIPTION’ ... OK
+#> * preparing ‘AssignParents’:
+#> * checking DESCRIPTION meta-information ... OK
+#> * checking for LF line-endings in source and make files and shell scripts
+#> * checking for empty or unneeded directories
+#> Omitted ‘LazyData’ from DESCRIPTION
+#> * building ‘AssignParents_0.1.0.tar.gz’
+#> Installing package into '/private/var/folders/tv/0602lkcj6xx0d31qv9lg1fbr0000gn/T/Rtmp9LSp3O/temp_libpath2b52f4df6aa'
+#> (as 'lib' is unspecified)
+```
+
+------------------------------------------------------------------------
+
+## Inputs and Outputs
+
+`assign_parents()` requires two ASV count matrices:
+
+- `clean_tab`: a high-confidence reference set of real sequence variants
+- `dirty_tab`: a more permissive set of sequence variants with
+  negligible read filtering.
+
+Both tables must:
+
+- Have ASVs as rows
+- Have samples as columns
+- Contain numeric count data
+- Use rownames that uniquely identify each ASV
+
+The corresponding sequence inputs:
+
+- `clean_seqs`
+- `dirty_seqs`
+
+must be named character vectors of nucleotide sequences where:
+
+- Names match the rownames of the respective count matrix
+- Vector length equals the number of rows in the corresponding matrix
+
+### Returns
+
+The function returns a list containing:
+
+- `collapsed_table`: CLEAN table with assigned DIRTY counts merged
+- `mapping`: DIRTY → CLEAN parent assignments
+- Identity, presence, abundance, and dominance score matrices
+- Optional unassigned ASV tables (if `keep_unassigned = TRUE`)
+
+All operations preserve total counts exactly.
+
+------------------------------------------------------------------------
+
+## Example
+
+``` r
+library(AssignParents)
+
+clean_seqs <- c(
+  C1 = "ACGTACGTACGT",
+  C2 = "GGGGACGTACGT"
+)
+
+dirty_seqs <- c(
+  D1 = "ACGTACGTACGT",
+  D2 = "ACGTACGTACGA"
+)
+
+clean_tab <- matrix(
+  c(5,1,
+    2,3),
+  nrow = 2,
+  dimnames = list(names(clean_seqs), c("S1","S2"))
+)
+
+dirty_tab <- matrix(
+  c(1,0,
+    0,1),
+  nrow = 2,
+  dimnames = list(names(dirty_seqs), c("S1","S2"))
+)
+
+out <- assign_parents(
+  clean_tab,
+  dirty_tab,
+  clean_seqs,
+  dirty_seqs,
+  min_identity = 0.95,
+  presence_cutoff = 1,
+  min_n = 1,
+  keep_unassigned = TRUE
+)
+#> [2026-02-28 16:40:04] Starting identity matrix computation...
+#> Computing identity matrix...
+#> Computing mismatch matrix...
+#> [2026-02-28 16:40:04] Identity/mismatch matrices done.
+#> [2026-02-28 16:40:04] Starting DIRTYxCLEAN scoring (presence/abundance/dominance)...
+#>   |                                                                              |                                                                      |   0%  |                                                                              |======================================================================| 100%
+#> [2026-02-28 16:40:04] Scoring complete. Building single_score matrix...
+#> [2026-02-28 16:40:04] Selecting parents / building mapping...
+#> [2026-02-28 16:40:04] Collapsing tables...
+
+out$collapsed_table
+#>    S1 S2
+#> C1  6  2
+#> C2  1  3
+```
+
+------------------------------------------------------------------------
+
+## Key Parameters
+
+Only the most commonly adjusted parameters are listed here.  
+See `?assign_parents` for full documentation.
+
+- `min_identity` Minimum percent identity required for a DIRTY ASV to be
+  considered for a CLEAN parent.
+
+- `presence_cutoff` Count threshold used to binarize presence/absence.
+
+- `min_n`  
+  Minimum number of shared samples required for similarity scoring.
+
+- `min_presence_score`  
+  Threshold applied to composite presence similarity.
+
+- `keep_unassigned`  
+  If `TRUE`, retains DIRTY ASVs that fail assignment.
+
+- `n_cores`, `parallel_method`  
+  Control parallel execution (`"none"`, `"fork"`, `"cluster"`).
+
+------------------------------------------------------------------------
+
+## Method Overview
+
+AssignParents proceeds in five stages:
+
+1.  **Sequence identity filtering**  
+    Computes DIRTY × CLEAN percent identity (Hamming or Levenshtein
+    depending upon whether sequence length is/isn’t equal across all
+    ASVs). Sequence identity defines the set of eligible parent
+    candidates.
+
+2.  **Presence composite scoring**  
+    Combines prevalence metrics, including the phi coefficient, Positive
+    Pointwise Mutual Information (PPMI), and F1 score. Each of these
+    metrics were chosen since they measure complementary aspects of
+    co-occurrence structure after read counts are binarized into
+    presence and absence.
+
+    The phi coefficient measures overall association strength between
+    any two ASVs across the dataset, accounting for both joint presences
+    and joint absences. PPMI measures positive co-occurrence compared to
+    random expectation and and is insensitive to associations driven by
+    ASVs with high background prevalence. The F1 score accounts for both
+    precision and recall, measuring the degree with which candidate
+    parent ASVs consistently co-occur with the DIRTY ASV without being
+    overly permissive.
+
+    Each metric is centered and scaled and then summed together. After
+    summation, the composite score is again center-scaled to produce a
+    composite that accurately captures ASV co-occurrence structure.
+
+3.  **Abundance composite scoring**  
+    Combines abundance similarity using Spearman correlation and
+    Hellinger distance. We used a composite of these two metrix because
+    they measure complementary aspects of abundance: Spearman
+    correlation measures monotonic agreement in rank abundance across
+    all samples, while Hellinger distance measures compositional
+    similarity that is invariable to differences in total abundance.
+
+    Each abundance metric is centered and scaled with a mean of zero and
+    S.D.of 1. These center-scaled metrics are then summed to form an
+    intermediate abundance composite score, which is center-scaled again
+    to produce a final composite abundance metric that weighs the values
+    for the Spearman correlation and Hellinger distance equally.
+
+4.  **Presence and abundance composite**  
+    Presence and abundance similarity metrics are summed together and
+    center-scaled. This composite meta-score is used for downstream
+    deterministic parent-child selections.
+
+5.  **Dominance filtering**  
+    Removes biologically implausible parent-child assignments. A parent
+    ASV cannot be more abundant than the child ASV.
+
+6.  **Deterministic parent selection**  
+    Sequence identity is the primary determinant of parent–child
+    relationships. Among ASVs that pass the minimum identity threshold,
+    the composite score is used as a tiebreaker during deterministic
+    parent selection when multiple candidate parents have comparable
+    sequence similarity.
+
+    A z-score–based neighborhood rule allows the algorithm to override
+    small differences in sequence similarity. By default, Parent ASV
+    candidates that fall within an identity neighborhood of 1 mismatch
+    (`identity_neighborhood_mismatches = 1`) are considered
+    near-equivalent. Within this neighborhood, if one lower-identity
+    candidate has a composite meta-score that exceeds the best
+    higher-identity candidate by at least 1.4 standard deviations
+    (`neighborhood_z_margin = 1.4`), it will be selected as the parent
+    even if it has slightly lower sequence similarity. This rule allows
+    strong ecological support to reproducibly resolve near-equivalent
+    identity matches in parent ASV selection.
+
+Each parallelization method and the sequential method were tested and
+produce identical results.
+
+------------------------------------------------------------------------
+
+## Compatibility
+
+AssignParents is compatible with ASV-based workflows that produce:
+
+- An ASV count matrix (ASVs × samples)
+- A list of DNA sequences per ASV
+
+This includes:
+
+- DADA2
+- Deblur
+- UNOISE
+- QIIME2-generated ASV feature tables (after export)
+- Custom denoising pipelines
+
+AssignParents does not require a specific upstream pipeline.
+
+------------------------------------------------------------------------
+
+## Citation
+
+If you use AssignParents in published work, please cite the conceptual
+framework described in:
+
+Oppenheimer, P. et al. (2024). *ISME Communications*.  
+<https://academic.oup.com/ismecommun/article/5/1/ycaf124/8209421>
+
+AssignParents builds upon and extends the methodological principles
+described in that study.
+
+A dedicated methodological manuscript describing the AssignParents
+algorithm and implementation is in preparation.
+
+## License
+
+MIT License
