@@ -1,40 +1,112 @@
-#' Assign DIRTY ASVs to CLEAN parents
+#' Assign DIRTY ASVs to CLEAN parent ASVs
 #'
-#' Collapses DIRTY ASVs into CLEAN ASVs using sequence identity,
-#' prevalence-aware presence similarity, abundance similarity,
-#' dominance filters, and a standardized meta-score.
+#' Post-denoising ASV refinement: collapse likely artifact ASVs (DIRTY) into
+#' parent ASVs (CLEAN) using sequence identity plus co-occurrence-based scoring,
+#' with optional dominance filtering. Counts from assigned DIRTY ASVs are added
+#' to the selected CLEAN parent.
 #'
-#' @param clean_tab Numeric matrix of CLEAN ASVs (rows = ASVs, cols = samples)
-#' @param dirty_tab Numeric matrix of DIRTY ASVs (rows = ASVs, cols = samples)
-#' @param clean_seqs Named character vector of CLEAN sequences
-#' @param dirty_seqs Named character vector of DIRTY sequences
+#' @param clean_tab Numeric matrix of CLEAN ASVs (rows = ASVs, cols = samples).
+#'   Row names should be CLEAN ASV IDs.
+#' @param dirty_tab Numeric matrix of DIRTY ASVs (rows = ASVs, cols = samples).
+#'   Row names should be DIRTY ASV IDs.
+#' @param clean_seqs Named character vector of CLEAN sequences. Names should match
+#'   \code{rownames(clean_tab)}.
+#' @param dirty_seqs Named character vector of DIRTY sequences. Names should match
+#'   \code{rownames(dirty_tab)}.
 #'
-#' @param min_identity Minimum percent identity required
-#' @param min_presence_score Minimum presence composite threshold
-#' @param presence_cutoff Abundance threshold for presence/absence binarization
-#' @param min_recall Minimum recall required in presence composite
-#' @param min_n Minimum co-occurrence sample size
-#' @param keep_unassigned Logical; keep DIRTY ASVs with no parent
+#' @param min_identity Numeric scalar in \code{[0,1]} giving the minimum sequence
+#'   identity for a DIRTY->CLEAN candidate edge (e.g., \code{0.98} = 98% identity).
+#'   Higher values reduce false merges but may miss true parents; lower values
+#'   increase recall but risk incorrect merges. Typical values: 0.97–1.00.
 #'
-#' @param presence_weights Named numeric vector for presence composite
-#' @param abundance_weights Named numeric vector for abundance composite
-#' @param single_weights Named numeric vector for final meta-score
-#' @param single_scale_method Scaling method for row-wise normalization
+#' @param min_presence_score Numeric scalar threshold for accepting an assignment
+#'   based on the presence composite score. If the presence composite is normalized,
+#'   this is typically in \code{[0,1]}. Increase to require stronger co-occurrence
+#'   evidence; decrease to allow weaker evidence.
 #'
-#' @param enforce_dominance Logical; enforce dominance filtering
-#' @param dominance_mean_ratio_max Maximum allowed normalized mean ratio
-#' @param dominance_frac_exceed_max Maximum allowed exceedance fraction
-#' @param dominance_min_both Minimum shared samples for dominance test
+#' @param presence_cutoff Numeric scalar >= 0 (integer recommended for count tables).
+#'   Values \eqn{>} \code{presence_cutoff} are treated as "present" for binarization
+#'   used in co-occurrence metrics (e.g., Jaccard, recall). Common choices are
+#'   \code{0} (any non-zero count is present) or \code{1} (require at least 2 reads).
 #'
-#' @param identity_neighborhood_mismatches Neighborhood size in mismatches
-#' @param neighborhood_z_margin Z-score margin required to override identity
+#' @param min_recall Numeric scalar in \code{[0,1]}. Minimum recall required in the
+#'   presence composite filtering. Higher values require the DIRTY ASV's occurrences
+#'   to be largely a subset of the parent's occurrences (direction depends on the
+#'   exact implementation of recall in this package).
 #'
-#' @param n_cores Number of cores for parallelization
-#' @param parallel_method Parallel backend. "auto" chooses "fork" on macOS/Linux
-#'   and "cluster" on Windows when n_cores > 1; otherwise "none".
+#' @param min_n Integer >= 1. Minimum number of co-occurrence samples required for
+#'   computing/accepting co-occurrence-based evidence (e.g., to avoid unstable scores
+#'   from very small overlap).
 #'
-#' @return A list containing collapsed tables, mapping, score matrices,
-#'         dominance diagnostics, and matched/unmatched sequence vectors.
+#' @param keep_unassigned Logical. If TRUE, DIRTY ASVs that do not receive an
+#'   assignment (no candidate passes thresholds/filters) are retained as separate
+#'   rows in the output; if FALSE they are dropped.
+#'
+#' @param presence_weights Named numeric vector with non-negative entries. Weights
+#'   used to combine individual components of the presence composite score. Names
+#'   must match the internal presence-component names computed by the package.
+#'   Components not listed are treated as weight 0.
+#'
+#' @param abundance_weights Named numeric vector with non-negative entries. Weights
+#'   used to combine individual components of the abundance composite score. Names
+#'   must match the internal abundance-component names computed by the package.
+#'   Components not listed are treated as weight 0.
+#'
+#' @param single_weights Named numeric vector with non-negative entries. Weights used
+#'   to combine higher-level scores (typically aggregates of identity/presence/abundance)
+#'   into a single final meta-score for ranking candidate parents. Names must match
+#'   the internal final-score component names. Components not listed are treated as 0.
+#'
+#' @param single_scale_method Character string controlling row-wise normalization
+#'   used when combining components into the final meta-score. One of:
+#'   \code{"z"} (z-score), \code{"robust"} (robust z-score / median-MAD style),
+#'   or \code{"rank"} (rank-based scaling).
+#'
+#' @param enforce_dominance Logical. If TRUE, apply dominance filtering to reject
+#'   assignments where the DIRTY ASV is not consistently lower than the proposed CLEAN
+#'   parent across shared samples (according to dominance parameters below).
+#'
+#' @param dominance_mean_ratio_max Numeric scalar in \code{(0, Inf)}. Threshold on
+#'   the (normalized) mean abundance ratio used in dominance filtering when
+#'   \code{enforce_dominance = TRUE}. Values < 1 enforce that DIRTY is lower than
+#'   the proposed parent on average; smaller values make dominance stricter.
+#'
+#' @param dominance_frac_exceed_max Numeric scalar in \code{[0,1]}. Maximum allowed
+#'   fraction of shared samples where the DIRTY ASV exceeds its proposed CLEAN parent
+#'   (per the dominance comparison). \code{0} means DIRTY may never exceed the parent;
+#'   \code{0.1} allows exceedance in up to 10% of shared samples; \code{1} effectively
+#'   disables this constraint. Only used when \code{enforce_dominance = TRUE}.
+#'
+#' @param dominance_min_both Integer >= 1. Minimum number of shared samples where both
+#'   DIRTY and proposed parent are present (per \code{presence_cutoff}) required to
+#'   run the dominance test.
+#'
+#' @param identity_neighborhood_mismatches Integer >= 0. Neighborhood size (in mismatches)
+#'   used by identity-neighborhood logic (if enabled) to consider near-ties among candidate
+#'   parents around the best identity.
+#'
+#' @param neighborhood_z_margin Numeric scalar >= 0. Z-score margin required for the
+#'   neighborhood logic to override a pure identity-based choice among near-tied parents.
+#'   Larger values make overrides rarer/more conservative.
+#'
+#' @param n_cores Integer >= 1. Number of cores to use for parallelizable steps.
+#'
+#' @param parallel_method Character string specifying parallel backend: \code{"none"},
+#'   \code{"fork"}, \code{"cluster"}, or \code{"auto"}. \code{"auto"} chooses \code{"fork"}
+#'   on macOS/Linux and \code{"cluster"} on Windows when \code{n_cores > 1}; otherwise \code{"none"}.
+#'   On Windows, \code{"fork"} is not available and will be treated as \code{"cluster"}.
+#'
+#' @return A named list including:
+#' \describe{
+#'   \item{collapsed_table}{CLEAN table with assigned DIRTY counts added to parents.}
+#'   \item{unmatched_clean_table}{CLEAN rows that never receive DIRTY assignments (if computed).}
+#'   \item{unassigned_dirty_table}{DIRTY rows that were not assigned (if \code{keep_unassigned = TRUE}).}
+#'   \item{mapping}{Per-DIRTY mapping to selected parent plus diagnostics/scores.}
+#'   \item{identity}{DIRTY x CLEAN identity matrix.}
+#'   \item{presence_score, abundance_score, single_score}{Score matrices used for ranking/selection.}
+#'   \item{dominance_*}{Dominance diagnostics matrices (mean ratio, exceedance fraction, etc.).}
+#'   \item{matched_clean_ids, unmatched_clean_ids, matched_clean_seqs, unmatched_clean_seqs, unmatched_dirty_seqs}{Convenience vectors.}
+#' }
 #'
 #' @export
 assign_parents <- function(clean_tab, dirty_tab, clean_seqs, dirty_seqs,
