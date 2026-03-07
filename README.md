@@ -201,8 +201,8 @@ AssignParents proceeds in five stages:
     deterministic parent-child selections.
 
 5.  **Dominance filtering**  
-    Removes biologically implausible parent-child assignments. A parent
-    ASV cannot be more abundant than the child ASV.
+    Removes biologically implausible parent-child assignments. A child
+    ASV cannot be more abundant than the parent ASV.
 
 6.  **Deterministic parent selection**  
     Sequence identity is the primary determinant of parent–child
