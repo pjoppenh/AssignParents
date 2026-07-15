@@ -1,17 +1,32 @@
 Package: AssignParents
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Post-Denoising ASV Refinement for Metabarcoding Workflows
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Authors@R: 
+    person(
+        given = "Peter",
+        family = "Oppenheimer",
+        email = "pjoppenh@ncsu.edu",
+        role = c("aut", "cre"),
+        comment = c(ORCID = "0000-0002-0589-466X")
+    )
+Description: Provides tools for post-denoising refinement of amplicon
+    sequence variant tables from metabarcoding workflows. AssignParents
+    reconciles high-confidence CLEAN ASV tables with permissive DIRTY ASV
+    tables by identifying likely daughter ASVs of parent ASVs using sequence
+    identity, presence similarity, abundance similarity, and dominance-based
+    filters. Assigned daughter ASV reads are collapsed into parent ASVs while
+    preserving total read counts. The package is intended to reduce residual
+    denoising artifacts and Phred-score-related biases in downstream ecological
+    and quantitative metabarcoding analyses.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.2.3
-Imports: 
+URL: https://github.com/pjoppenh/AssignParents, https://doi.org/10.5281/zenodo.18819157
+BugReports: https://github.com/pjoppenh/AssignParents/issues
+Imports:
     stringdist
-Suggests: 
+Suggests:
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
